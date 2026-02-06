@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng Xếp Hạng Donate - KimiZK</title>
+    <meta name="description" content="Bảng xếp hạng những người ủng hộ KimiZK. Cảm ơn tất cả các bạn!">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="shortcut icon" href="./data/logo.png" type="image/x-icon">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <img src="data/logo.png" alt="KimiZK Donate Logo" class="logo-img">
+            </div>
+            <nav class="nav">
+                <div class="nav-item active">Bảng Xếp Hạng</div>
+            </nav>
+        </header>
+
+        <!-- Total Donation Badge -->
+        <section class="total-donation-section">
+            <div class="total-donation-badge" id="totalBadge">
+                <div class="total-icon">💰</div>
+                <div class="total-content">
+                    <span class="total-label">Tổng ủng hộ</span>
+                    <span class="total-amount" id="totalAmount">0₫</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Podium -->
+        <section class="podium-section">
+            <div class="podium-container" id="podiumContainer">
+                <!-- Loading Skeleton -->
+                <div class="skeleton-podium">
+                    <div class="skeleton-item rank-2">
+                        <div class="skeleton-avatar"></div>
+                        <div class="skeleton-stand"></div>
+                    </div>
+                    <div class="skeleton-item rank-1">
+                        <div class="skeleton-avatar large"></div>
+                        <div class="skeleton-stand tall"></div>
+                    </div>
+                    <div class="skeleton-item rank-3">
+                        <div class="skeleton-avatar"></div>
+                        <div class="skeleton-stand short"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Leaderboard -->
+        <section class="leaderboard-section">
+            <div class="section-header">
+                <div class="section-title-wrapper">
+                    <div class="diamond-left"></div>
+                    <h2 class="section-title">Bảng Xếp Hạng</h2>
+                    <div class="diamond-right"></div>
+                </div>
+                <p class="section-subtitle">Cảm ơn tất cả những người đã ủng hộ! 💖</p>
+            </div>
+
+            <!-- Search Control -->
+            <div class="search-container">
+                <div class="search-wrapper">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="searchInput" class="search-input"
+                        placeholder="Tìm kiếm người ủng hộ (Tên, Username)...">
+                    <button class="search-clear" id="searchClear" style="display: none;">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="leaderboard-table-wrapper">
+                <table class="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>#TOP</th>
+                            <th>Người Donate</th>
+                            <th>Số Tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Loading Skeleton -->
+                        <tr class="skeleton-row">
+                            <td>
+                                <div class="skeleton-text small"></div>
+                            </td>
+                            <td>
+                                <div class="skeleton-cell">
+                                    <div class="skeleton-avatar-small"></div>
+                                    <div class="skeleton-text"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="skeleton-text"></div>
+                            </td>
+                        </tr>
+                        <tr class="skeleton-row">
+                            <td>
+                                <div class="skeleton-text small"></div>
+                            </td>
+                            <td>
+                                <div class="skeleton-cell">
+                                    <div class="skeleton-avatar-small"></div>
+                                    <div class="skeleton-text"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="skeleton-text"></div>
+                            </td>
+                        </tr>
+                        <tr class="skeleton-row">
+                            <td>
+                                <div class="skeleton-text small"></div>
+                            </td>
+                            <td>
+                                <div class="skeleton-cell">
+                                    <div class="skeleton-avatar-small"></div>
+                                    <div class="skeleton-text"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="skeleton-text"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Empty State -->
+                <div class="empty-state" id="emptyState" style="display: none;">
+                    <div class="empty-icon">🔍</div>
+                    <h3 class="empty-title">Không tìm thấy kết quả</h3>
+                    <p class="empty-text">Không có người ủng hộ nào phù hợp với "<span id="emptySearchTerm"></span>"</p>
+                </div>
+            </div>
+
+            <!-- Pagination Control -->
+            <div class="pagination-container" id="paginationContainer">
+                <button class="pagination-btn" id="prevBtn" disabled>
+                    <i class="fa-solid fa-chevron-left"></i> Trước
+                </button>
+                <div class="pagination-info" id="pageInfo">
+                    Trang 1 / 1
+                </div>
+                <button class="pagination-btn" id="nextBtn" disabled>
+                    Sau <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-heart">💝</div>
+                <p class="footer-text">Made with love</p>
+                <p class="footer-copyright">© 2026 KimiZK Donate Board</p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="js/script.js"></script>
+</body>
+
+</html>
