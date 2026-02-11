@@ -74,8 +74,9 @@ body {
   width: 56px;
   height: 56px;
   border-radius: 12px;
-  object-fit: cover;
+  object-fit: contain;
   border: 1px solid var(--line);
+  background: #ffffff;
 }
 
 .hero-kicker {
@@ -345,3 +346,4 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
