@@ -1,32 +1,24 @@
+/* ===== State ===== */
 const state = {
   donors: [],
   filtered: [],
   batchSize: 12,
   visibleCount: 0,
   query: '',
+  sortBy: 'amount-desc',
   isAppending: false
 };
 
 const moneyFormat = new Intl.NumberFormat('vi-VN');
-const iconMap = {
-  facebook: 'fa-facebook',
-  instagram: 'fa-instagram',
-  tiktok: 'fa-tiktok',
-  youtube: 'fa-youtube',
-  threads: 'fa-threads',
-  twitter: 'fa-x-twitter',
-  x: 'fa-x-twitter',
-  discord: 'fa-discord',
-  github: 'fa-github',
-  telegram: 'fa-telegram'
-};
 
+/* ===== DOM Cache ===== */
 const els = {
   totalAmount: document.getElementById('totalAmount'),
   supporterCount: document.getElementById('supporterCount'),
   searchInput: document.getElementById('searchInput'),
   clearSearch: document.getElementById('clearSearch'),
   perPageSelect: document.getElementById('perPageSelect'),
+  sortSelect: document.getElementById('sortSelect'),
   resultCount: document.getElementById('resultCount'),
   topList: document.getElementById('topList'),
   donorList: document.getElementById('donorList'),
@@ -34,11 +26,14 @@ const els = {
   loadInfo: document.getElementById('loadInfo'),
   loadZone: document.getElementById('loadZone'),
   loadMoreBtn: document.getElementById('loadMoreBtn'),
-  loadMoreSentinel: document.getElementById('loadMoreSentinel')
+  loadMoreSentinel: document.getElementById('loadMoreSentinel'),
+  skeleton: document.getElementById('skeleton'),
+  scrollTopBtn: document.getElementById('scrollTopBtn')
 };
 
 let observer;
 
+/* ===== Utilities ===== */
 function formatMoney(amount) {
   return `${moneyFormat.format(amount)}đ`;
 }
@@ -48,145 +43,64 @@ function toSafeNumber(value) {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-function normalizeUid(uid = '', platform = '') {
-  let value = String(uid).trim();
-  if (!value) return '';
+function toTitleCase(str) {
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
 
-  if (value.startsWith('@')) {
-    value = value.slice(1);
+function parseDate(dateStr) {
+  if (!dateStr) return 0;
+  const parts = dateStr.split('/');
+  if (parts.length === 3) {
+    return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime() || 0;
   }
-
-  if (platform === 'youtube' && /^channel\//i.test(value)) {
-    return value;
-  }
-
-  return value;
+  return new Date(dateStr).getTime() || 0;
 }
 
-function parseUidFromUrl(url, platform) {
-  if (!url) return '';
-
-  try {
-    const pathname = new URL(url).pathname;
-    const parts = pathname.split('/').filter(Boolean);
-    if (!parts.length) return '';
-
-    if (platform === 'tiktok') {
-      return normalizeUid(parts[0], platform);
-    }
-
-    if (platform === 'youtube') {
-      if (parts[0] === 'channel' && parts[1]) return `channel/${parts[1]}`;
-      return normalizeUid(parts[0], platform);
-    }
-
-    return normalizeUid(parts[0], platform);
-  } catch {
-    return '';
-  }
-}
-
-function buildSocialUrl(platform, uid) {
-  const id = normalizeUid(uid, platform);
-  if (!platform || !id) return '';
-
-  switch (platform) {
-    case 'facebook':
-      return `https://facebook.com/${id}`;
-    case 'instagram':
-      return `https://instagram.com/${id}`;
-    case 'tiktok':
-      return `https://www.tiktok.com/@${id}`;
-    case 'threads':
-      return `https://www.threads.net/@${id}`;
-    case 'twitter':
-    case 'x':
-      return `https://x.com/${id}`;
-    case 'youtube':
-      return id.startsWith('channel/')
-        ? `https://www.youtube.com/${id}`
-        : `https://www.youtube.com/@${id}`;
-    case 'github':
-      return `https://github.com/${id}`;
-    case 'telegram':
-      return `https://t.me/${id}`;
-    case 'discord':
-      return `https://discord.com/users/${id}`;
-    default:
-      return '';
-  }
-}
-
-function socialNeedsAt(platform) {
-  return ['tiktok', 'instagram', 'threads', 'twitter', 'x', 'telegram', 'youtube'].includes(platform);
-}
-
-function normalizeSocial(raw) {
-  if (!raw) return null;
-
-  if (typeof raw === 'string') {
-    const platformOnly = raw.toLowerCase();
-    return { platform: platformOnly, uid: '', username: '', url: '' };
-  }
-
-  const platform = String(raw.platform || raw.network || raw.name || '').toLowerCase().trim();
-  const username = String(raw.username || raw.handle || '').trim();
-  const legacyUrl = String(raw.url || raw.link || '').trim();
-
-  const uidFromRaw = String(raw.uid || '').trim();
-  const uidFromUserName = normalizeUid(username, platform);
-  const uidFromUrl = parseUidFromUrl(legacyUrl, platform);
-  const uid = normalizeUid(uidFromRaw || uidFromUserName || uidFromUrl, platform);
-  const url = buildSocialUrl(platform, uid) || legacyUrl;
-
-  if (!platform && !username && !uid && !url) return null;
-  return { platform, uid, username, url };
-}
-
-function getAnonymousFlag(raw) {
-  return raw?.anynomous === true || raw?.anonymous === true;
-}
-
+/* ===== Data Processing ===== */
 function normalizeDonors(list) {
-  let anonymousCount = 0;
-
   return list
     .map((raw) => {
-      const isAnonymous = getAnonymousFlag(raw);
       const amount = toSafeNumber(raw.amount);
       if (!amount) return null;
 
       const rawName = String(raw.name || '').trim();
-      if (isAnonymous) anonymousCount += 1;
+      const name = rawName ? toTitleCase(rawName) : 'Ẩn danh';
+      const date = String(raw.date || '').trim();
 
-      const name = isAnonymous
-        ? rawName || `Ẩn danh ${anonymousCount}`
-        : rawName || 'Không tên';
-
-      const social = isAnonymous
-        ? null
-        : normalizeSocial(raw.social) || normalizeSocial({
-          platform: raw.type,
-          username: raw.username,
-          uid: raw.uid,
-          url: raw.social_link
-        });
-
-      const avatar = isAnonymous ? '' : String(raw.avatar || '').trim();
-
-      return {
-        name,
-        amount,
-        avatar,
-        anynomous: isAnonymous,
-        social
-      };
+      return { name, amount, date };
     })
-    .filter(Boolean)
-    .sort((a, b) => b.amount - a.amount)
-    .map((item, idx) => ({ ...item, rank: idx + 1 }));
+    .filter(Boolean);
 }
 
+function sortDonors(donors, sortBy) {
+  const sorted = [...donors];
+  switch (sortBy) {
+    case 'amount-desc':
+      sorted.sort((a, b) => b.amount - a.amount);
+      break;
+    case 'amount-asc':
+      sorted.sort((a, b) => a.amount - b.amount);
+      break;
+    case 'date-desc':
+      sorted.sort((a, b) => parseDate(b.date) - parseDate(a.date));
+      break;
+    case 'date-asc':
+      sorted.sort((a, b) => parseDate(a.date) - parseDate(b.date));
+      break;
+    case 'name-asc':
+      sorted.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+      break;
+    default:
+      sorted.sort((a, b) => b.amount - a.amount);
+  }
+  return sorted.map((item, idx) => ({ ...item, rank: idx + 1 }));
+}
+
+/* ===== Animation ===== */
 function animateCount(element, endValue, duration = 650) {
   const start = performance.now();
 
@@ -200,65 +114,50 @@ function animateCount(element, endValue, duration = 650) {
   requestAnimationFrame(frame);
 }
 
-function buildAvatar(item) {
-  if (item.avatar) {
-    return `<img class="avatar" loading="lazy" src="${item.avatar}" alt="${item.name}" onerror="this.remove(); this.parentElement.insertAdjacentHTML('afterbegin', '<div class=&quot;avatar avatar-fallback&quot;>?</div>')">`;
-  }
+/* ===== Card Building ===== */
+const medalIcons = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
-  const label = item.anynomous ? '<i class="fa-solid fa-user-secret"></i>' : item.name.slice(0, 1).toUpperCase();
-  return `<div class="avatar avatar-fallback">${label}</div>`;
-}
+function buildCard(item, isTop = false, animIndex = 0) {
+  const initial = item.name.slice(0, 1).toUpperCase();
+  const topClass = isTop ? `top top-${item.rank}` : '';
+  const medal = isTop && medalIcons[item.rank] ? `<span class="medal-badge">${medalIcons[item.rank]}</span> ` : '';
+  const delay = animIndex * 50;
 
-function buildSocial(item) {
-  if (!item.social) return '';
-
-  const platform = item.social.platform || 'globe';
-  const icon = iconMap[platform] || 'fa-globe';
-  const uid = item.social.uid || '';
-  const username = item.social.username || (socialNeedsAt(platform) && uid ? `@${uid}` : uid || platform);
-  const url = item.social.url || buildSocialUrl(platform, uid);
-
-  if (!url) {
-    return `<span class="social-link"><i class="fa-brands ${icon}"></i> ${username}</span>`;
-  }
-
-  return `<a class="social-link" href="${url}" target="_blank" rel="noopener noreferrer"><i class="fa-brands ${icon}"></i> ${username}</a>`;
-}
-
-function buildCard(item, isTop = false) {
   return `
-    <article class="donor-card ${isTop ? 'top' : ''}">
+    <article class="donor-card ${topClass} card-animate" style="--delay:${delay}ms">
       <div class="card-inner">
         <div class="donor-head">
-          ${buildAvatar(item)}
+          <div class="avatar avatar-fallback">${initial}</div>
           <div>
-            <p class="donor-name">${item.name}</p>
+            <p class="donor-name">${medal}${item.name}</p>
             <p class="donor-rank mb-0">Top #${item.rank}</p>
           </div>
         </div>
         <div class="donor-meta">
           <span class="donor-amount">${formatMoney(item.amount)}</span>
-          ${buildSocial(item)}
+          ${item.date ? `<span class="donor-date"><i class="fa-regular fa-calendar"></i> ${item.date}</span>` : ''}
         </div>
       </div>
     </article>
   `;
 }
 
+/* ===== Rendering ===== */
 function renderTop() {
-  const list = state.filtered.slice(0, 3);
+  // Top 3 always sorted by amount (descending), independent of user sort choice
+  const topByAmount = sortDonors(state.filtered, 'amount-desc').slice(0, 3);
   els.topList.innerHTML = '';
 
-  if (!list.length) {
+  if (!topByAmount.length) {
     els.topList.innerHTML = '<div class="col-12"><div class="empty-state">Chưa có donor để hiển thị.</div></div>';
     return;
   }
 
   const fragment = document.createDocumentFragment();
-  list.forEach((item) => {
+  topByAmount.forEach((item, i) => {
     const col = document.createElement('div');
     col.className = 'col-12 col-md-4';
-    col.innerHTML = buildCard(item, true);
+    col.innerHTML = buildCard(item, true, i);
     fragment.appendChild(col);
   });
   els.topList.appendChild(fragment);
@@ -288,10 +187,10 @@ function appendNextBatch() {
   const chunk = state.filtered.slice(from, to);
 
   const fragment = document.createDocumentFragment();
-  chunk.forEach((item) => {
+  chunk.forEach((item, i) => {
     const col = document.createElement('div');
-    col.className = 'col-12 col-md-6 col-xl-4';
-    col.innerHTML = buildCard(item, false);
+    col.className = 'col-12 col-sm-6 col-xl-4';
+    col.innerHTML = buildCard(item, false, i);
     fragment.appendChild(col);
   });
 
@@ -312,28 +211,22 @@ function resetListAndRender() {
   }
 }
 
+/* ===== Filter & Sort ===== */
 function applyFilter() {
   const q = state.query;
-  if (!q) {
-    state.filtered = state.donors;
-  } else {
-    state.filtered = state.donors.filter((d) => {
-      const socialName = d.social?.username || '';
-      const socialUid = d.social?.uid || '';
-      const platform = d.social?.platform || '';
-      return (
-        d.name.toLowerCase().includes(q) ||
-        socialName.toLowerCase().includes(q) ||
-        socialUid.toLowerCase().includes(q) ||
-        platform.toLowerCase().includes(q)
-      );
-    });
+  let list = state.donors;
+
+  if (q) {
+    list = list.filter((d) => d.name.toLowerCase().includes(q));
   }
+
+  state.filtered = sortDonors(list, state.sortBy);
 
   renderTop();
   resetListAndRender();
 }
 
+/* ===== Debounce ===== */
 function debounce(fn, delay = 180) {
   let timer;
   return (...args) => {
@@ -342,6 +235,7 @@ function debounce(fn, delay = 180) {
   };
 }
 
+/* ===== Infinite Scroll ===== */
 function setupInfiniteScroll() {
   if (!('IntersectionObserver' in window)) {
     els.loadMoreBtn.classList.remove('d-none');
@@ -366,23 +260,53 @@ function setupInfiniteScroll() {
   observer.observe(els.loadMoreSentinel);
 }
 
+/* ===== Skeleton ===== */
+function showSkeleton() {
+  if (els.skeleton) els.skeleton.classList.remove('d-none');
+}
+
+function hideSkeleton() {
+  if (els.skeleton) els.skeleton.classList.add('d-none');
+}
+
+/* ===== Scroll to Top ===== */
+function setupScrollToTop() {
+  if (!els.scrollTopBtn) return;
+
+  const toggle = () => {
+    els.scrollTopBtn.classList.toggle('hidden', window.scrollY < 400);
+  };
+
+  window.addEventListener('scroll', toggle, { passive: true });
+  toggle();
+
+  els.scrollTopBtn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
+/* ===== Data Loading ===== */
 async function loadData() {
+  showSkeleton();
+
   try {
-    const res = await fetch('./data/donors.json', { cache: 'no-store' });
+    const res = await fetch('./data/donors.json');
     if (!res.ok) throw new Error('Fetch failed');
 
     const raw = await res.json();
     state.donors = normalizeDonors(Array.isArray(raw) ? raw : []);
-    state.filtered = state.donors;
+    state.filtered = sortDonors(state.donors, state.sortBy);
 
     const totalAmount = state.donors.reduce((sum, item) => sum + item.amount, 0);
     els.supporterCount.textContent = String(state.donors.length);
     animateCount(els.totalAmount, totalAmount);
 
+    hideSkeleton();
     renderTop();
     resetListAndRender();
   } catch (err) {
     console.error(err);
+    hideSkeleton();
     els.topList.innerHTML = '<div class="col-12"><div class="empty-state">Không tải được dữ liệu donor.</div></div>';
     els.donorList.innerHTML = '';
     els.emptyState.classList.remove('d-none');
@@ -391,6 +315,7 @@ async function loadData() {
   }
 }
 
+/* ===== Events ===== */
 const onSearch = debounce((value) => {
   state.query = value.trim().toLowerCase();
   applyFilter();
@@ -410,11 +335,20 @@ function bindEvents() {
     resetListAndRender();
   });
 
+  if (els.sortSelect) {
+    els.sortSelect.addEventListener('change', (e) => {
+      state.sortBy = e.target.value;
+      applyFilter();
+    });
+  }
+
   els.loadMoreBtn.addEventListener('click', appendNextBatch);
 }
 
+/* ===== Init ===== */
 document.addEventListener('DOMContentLoaded', () => {
   bindEvents();
   setupInfiniteScroll();
+  setupScrollToTop();
   loadData();
 });
